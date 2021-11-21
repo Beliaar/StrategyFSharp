@@ -4,9 +4,16 @@ open System
 open System.Drawing
 open System.Numerics
 open System.Numerics
+open System.Numerics
+open System.Numerics
+open System.Numerics
+open System.Numerics
+open System.Numerics
+open System.Numerics
 open FSharp.Linq.NullableOperators
 open Garnet.Composition
 open Garnet.Composition.Join
+open Microsoft.Xna.Framework
 open Microsoft.Xna.Framework
 open Microsoft.Xna.Framework.Graphics
 open Microsoft.Xna.Framework.Graphics
@@ -27,7 +34,6 @@ type StrategyGame () as this =
  
     let world = Container()
     let mutable updateLOS = true
-    let mutable leftButtonHeld = false
     let mutable update = Unchecked.defaultof<_>
     let mutable draw = Unchecked.defaultof<_>
     let graphics = new GraphicsDeviceManager(this)
@@ -99,35 +105,57 @@ type StrategyGame () as this =
             let spriteBatch = world.LoadResource<SpriteBatch> "SpriteBatch"
             let hexfieldSize = world.LoadResource<float32> "FieldSize"
             let centre = world.LoadResource<Vector2> "Centre"
-            let polygon = CalculatePolygon hexfieldSize
-            spriteBatch.Begin()
+            let effect = world.LoadResource<Effect> "Effect"
+            
+            let polygonTriangles = PolygonTriangles hexfieldSize
+            let polygonPoints = PolygonPoints hexfieldSize
+
+            let triangleVertices =
+                polygonTriangles
+                |> Array.map (fun point -> VertexPositionColor(Vector3(point.X, point.Y, 0f), Color.White))            
+             
+            let polygonVertices =
+                 polygonPoints
+                 |> Array.map (fun point -> VertexPositionColor(Vector3(point.X, point.Y, 0f), Color.Black))
+                 
             let query = world.Query<Field>()
+            
+            let worldViewProjection = effect.Parameters.Item "WorldViewProjection"
+            worldViewProjection.SetValue(Matrix.CreateOrthographicOffCenter(0f, float32 graphics.GraphicsDevice.Viewport.Width, float32 graphics.GraphicsDevice.Viewport.Height, 0f, 0f, 1f))           
+
+            let offset = effect.Parameters.Item "Offset"
+            
+            //TODO: Use Index
+            
             for field in query do
                 let position = Get2DPositionOfHexagon field.Value.Location hexfieldSize + centre
-                spriteBatch.DrawPolygon(position, polygon, Color.White)
-            spriteBatch.End()
+                offset.SetValue(position)
+                
+                effect.CurrentTechnique.Passes.Item(0).Apply()                
+                graphics.GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, triangleVertices, 0, triangleVertices.Length / 3)
+            for field in query do
+                let position = Get2DPositionOfHexagon field.Value.Location hexfieldSize + centre
+                offset.SetValue(position)
+                
+                effect.CurrentTechnique.Passes.Item(0).Apply()
+                graphics.GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineStrip, polygonVertices, 0, polygonVertices.Length / 2)
                 
         
         base.Initialize() // Load content has been called after
-        losPoint <- Vector2(float32 graphics.PreferredBackBufferWidth / 2f, float32 graphics.PreferredBackBufferHeight / 2f)
-
-        
-//        let random = Random()
-
-//        let createObject _ =
-//            world.Create()
-               
+        losPoint <- Vector2(float32 graphics.PreferredBackBufferWidth / 2f, float32 graphics.PreferredBackBufferHeight / 2f)                    
             
 
     override this.LoadContent() =
         world.AddResource ("FieldSize", 40f)
-        world.AddResource ("Radius", 10)
+        world.AddResource ("Radius", 3)
         world.AddResource ("RecreateGrid", true)
         world.AddResource ("SpriteBatch", new SpriteBatch(this.GraphicsDevice))
         world.AddResource ("MousePos", Vector2.Zero)
         world.AddResource ("LeftButtonHeld", false)
         world.AddResource ("MouseState", Mouse.GetState this.Window)
-        world.AddResource ("Centre", Vector2(float32 graphics.PreferredBackBufferWidth / 2f, float32 graphics.PreferredBackBufferHeight / 2f))
+        world.AddResource ("Centre", Vector2(float32 graphics.PreferredBackBufferWidth / 2f, float32 graphics.PreferredBackBufferHeight / 2f))        
+        world.AddResource ("Effect", this.Content.Load<Effect>("Effect1"))
+        
         // TODO: use this.Content to load your game content here
  
     override this.Update (gameTime) =

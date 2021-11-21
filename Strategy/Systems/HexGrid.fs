@@ -44,22 +44,50 @@ let GetNeighbours (hexagon: Hexagon) =
     |]
 
 
-let CalculatePolygon hexfield_size =
-    let width = sqrt 3f * hexfield_size;
-    let height = 2f * hexfield_size;
-    let half_height = height / 2f;
-    let quarter_height = height / 4f;
+let PolygonWidth hexfieldSize =
+    sqrt 3f * hexfieldSize
 
-    let half_width = width / 2f;
+let PolygonHeight hexfieldSize =
+    2f * hexfieldSize
 
+let Half value =
+    value / 2f
+let Quarter value =
+    value /4f
+
+let PolygonPoints hexfieldSize =
+    let width = PolygonWidth hexfieldSize
+    let height = PolygonHeight hexfieldSize
+    let halfHeight = Half height
+    let quarterHeight = Quarter height
+    let halfWidth = Half width
     
-    let points = [|
-        Vector2(-half_width, -quarter_height);
-        Vector2(0f, -half_height);
-        Vector2(half_width, -quarter_height);
-        Vector2(half_width, quarter_height);
-        Vector2(0f, half_height);
-        Vector2(-half_width, quarter_height);
-        Vector2(-half_width, -quarter_height);
+    [|
+        Vector2(-halfWidth, -quarterHeight);
+        Vector2(0f, -halfHeight);
+        Vector2(halfWidth, -quarterHeight);
+        Vector2(halfWidth, quarterHeight);
+        Vector2(0f, halfHeight);
+        Vector2(-halfWidth, quarterHeight);
+        Vector2(-halfWidth, -quarterHeight);
     |]
-    Polygon (points)
+    
+let PolygonTriangles hexfieldSize =
+    let points = PolygonPoints hexfieldSize    
+    let centre = Vector2.Zero
+    
+    let closeCircuit points =
+        points
+        |> Array.take 1
+        |> Array.append points
+        
+    let makeTriangles points =
+        points
+        |> Array.pairwise
+        |> Array.map (fun (p1, p2) -> [|centre; p1; p2|])
+        |> Array.fold Array.append [||]   
+    
+    points
+        |> closeCircuit
+        |> makeTriangles
+    
