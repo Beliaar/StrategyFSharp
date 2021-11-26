@@ -1,4 +1,4 @@
-﻿#if OPENGL
+#if OPENGL
 	#define SV_POSITION POSITION
 	#define VS_SHADERMODEL vs_3_0
 	#define PS_SHADERMODEL ps_3_0
@@ -8,12 +8,12 @@
 #endif
 
 matrix WorldViewProjection;
-float2 Offset;
+float3 Offset;
+float4 Color;
 
 struct VertexShaderInput
 {
 	float4 Position : POSITION0;
-	float4 Color : COLOR0;
 };
 
 struct VertexShaderOutput
@@ -27,10 +27,10 @@ VertexShaderOutput MainVS(in VertexShaderInput input)
 	VertexShaderOutput output = (VertexShaderOutput)0;
 
 	float4 position = input.Position;
-	position.xy += Offset;
+	position.xyz += Offset;
 
 	output.Position = mul(position, WorldViewProjection);
-	output.Color = input.Color;
+	output.Color = Color;
 
 	return output;
 }

@@ -13,34 +13,36 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <None Remove="Icon.ico" />
-        <None Remove="Icon.bmp" />
+        <None Remove="Icon.ico"/>
+        <None Remove="Icon.bmp"/>
     </ItemGroup>
 
     <ItemGroup>
-        <EmbeddedResource Include="Icon.ico" />
-        <EmbeddedResource Include="Icon.bmp" />
+        <EmbeddedResource Include="Icon.ico"/>
+        <EmbeddedResource Include="Icon.bmp"/>
     </ItemGroup>
 
     <ItemGroup>
-        <MonoGameContentReference Include="Content\Content.mgcb" Visible="false" />
-        <Content Include="Content\File.fx" />
+        <MonoGameContentReference Include="Content\Content.mgcb" Visible="false"/>
+        <Content Include="Content\HexLayers.fx"/>
+        <Content Include="Content\Basic.fx"/>
     </ItemGroup>
 
     <ItemGroup>
-        <TrimmerRootAssembly Include="MonoGame.Framework" Visible="false" />
-        <Compile Include="Components\Hexagon.fs" />
-        <Compile Include="Components\Field.fs" />
-        <Compile Include="Systems\HexGrid.fs" />
-        <Compile Include="StrategyGame.fs" />
-        <Compile Include="Program.fs" />
+        <TrimmerRootAssembly Include="MonoGame.Framework" Visible="false"/>
+        <Compile Include="Components\Hexagon.fs"/>
+        <Compile Include="Components\Field.fs"/>
+        <Compile Include="Systems\HexGrid.fs"/>
+        <Compile Include="StrategyGame.fs"/>
+        <Compile Include="Program.fs"/>
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Garnet" Version="0.5.3" />
-        <PackageReference Include="MonoGame.Extended" Version="3.8.0" />
-        <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" />
-        <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.*" />
+        <PackageReference Include="Garnet" Version="0.5.3"/>
+        <PackageReference Include="MonoGame.Extended" Version="3.8.0"/>
+        <PackageReference Include="MonoGame.Extended.Graphics" Version="3.8.0"/>
+        <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*"/>
+        <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.*"/>
     </ItemGroup>
 
 </Project>

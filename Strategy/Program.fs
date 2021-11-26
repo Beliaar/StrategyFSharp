@@ -2,8 +2,6 @@
 
 module Program =
 
-    open System
-    open Microsoft.Xna.Framework
 
     [<EntryPoint>]
     let main argv =
