@@ -7,9 +7,17 @@ open Garnet.Composition.Join
 open Microsoft.Xna.Framework
 open Microsoft.Xna.Framework.Graphics
 open Microsoft.Xna.Framework.Input
+open MonoGame.Extended.Shapes
 open Strategy.Components
 open Strategy.Components.Field
+open Strategy.Components.Hexagon
 open Strategy.Systems.HexGrid
+open MonoGame.Extended
+
+type Highlighted =
+    struct
+
+    end
 
 [<Struct>]
 type Draw = { DrawTime: GameTime }
@@ -62,6 +70,11 @@ type StrategyGame() as this =
 
             false
 
+        let hexagonEquals (first: Hexagon) (second: Hexagon) =
+            first.Q = second.Q
+            && first.R = second.R
+            && first.S = second.S
+
 
         update <-
             world.On<Update>
@@ -70,7 +83,10 @@ type StrategyGame() as this =
                 let mouseState =
                     world.LoadResource<MouseState> "MouseState"
 
-                world.AddResource("MousePos", Vector2(float32 mouseState.X, float32 mouseState.Y))
+                let mousePos =
+                    Point2(float32 mouseState.X, float32 mouseState.Y)
+
+                world.AddResource("MousePos", mousePos)
 
                 let leftPressed =
                     match mouseState.LeftButton with
@@ -82,6 +98,61 @@ type StrategyGame() as this =
 
 
                 let recreateGrid = world.LoadResource<bool> "RecreateGrid"
+
+                let hexfieldSize = world.LoadResource<float32> "FieldSize"
+
+                let screenCenter =
+                    world.LoadResource<Vector2> "ScreenCenter"
+
+                let highlightedQuery = world.Query<Eid, Field, Highlighted>()
+
+                let highlightedField =
+                    if highlightedQuery.GetCount() > 0 then
+                        highlightedQuery
+                        |> Seq.map (fun q -> q.Value1)
+                        |> Seq.head
+                        |> Some
+                    else
+                        None
+
+                let points = PolygonPoints hexfieldSize
+
+                let mouseHexagons =
+                    world.Query<Eid, Field>()
+                    |> Seq.filter
+                        (fun item ->
+                            let field = item.Value2
+
+                            let center =
+                                Get2DPositionOfHexagon field.Location hexfieldSize
+                                + screenCenter
+
+                            let points =
+                                points |> Array.map (fun p -> p + center)
+
+                            let polygon = Polygon(points)
+                            polygon.Contains(Vector2(mousePos.X, mousePos.Y)))
+                    |> Seq.map (fun item -> item.Value1)
+
+                let changeHighlight =
+                    match highlightedField with
+                    | Some field ->
+                        not
+                        <| Seq.exists (fun id -> id = field) mouseHexagons
+                    | None -> true
+
+                if changeHighlight then
+                    highlightedQuery
+                    |> Seq.iter
+                        (fun item ->
+                            let entity = world.Get item.Value1
+                            entity.Remove<Highlighted>())
+
+                    if Seq.length mouseHexagons > 0 then
+                        let entity = world.Get <| Seq.head mouseHexagons
+                        let highlighted = Highlighted()
+                        entity.Add<Highlighted> highlighted
+
 
 
                 if recreateGrid then
@@ -97,8 +168,6 @@ type StrategyGame() as this =
 
                     world.AddResource("RecreateGrid", false)
 
-                world.Commit()
-
                 if updateLOS then
                     updateLOS <- false
 
@@ -106,15 +175,21 @@ type StrategyGame() as this =
                         let entity = world.Get field.Current.Value1
 
                         let newField =
-                            Field(field.Value2.Location, true, false)
+                            Field(field.Value2.Location, false, false)
 
-                        entity.Set<Field> newField
+                        entity.Add<Field> newField
 
         draw <-
             world.On<Draw>
             <| fun time ->
+                let spriteBatch =
+                    world.LoadResource<SpriteBatch> "spriteBatch"
+
                 let hexfieldSize = world.LoadResource<float32> "FieldSize"
-                let centre = world.LoadResource<Vector2> "Centre"
+
+                let center =
+                    world.LoadResource<Vector2> "ScreenCenter"
+
                 let basicEffect = world.LoadResource<Effect> "BasicEffect"
 
                 let hexlayerEffect =
@@ -136,7 +211,16 @@ type StrategyGame() as this =
                     |> Array.append polygonPoints
                     |> Array.map (fun point -> VertexPosition(Vector3(point.X, point.Y, 0f)))
 
-                let query = world.Query<Field>()
+                let highlightQuery = world.Query<Field, Highlighted>()
+
+                let highlightedField =
+                    if highlightQuery.GetCount() > 0 then
+                        highlightQuery
+                        |> Seq.map (fun q -> q.Value1)
+                        |> Seq.head
+                        |> Some
+                    else
+                        None
 
                 let worldViewProjection =
                     hexlayerEffect.Parameters.Item "WorldViewProjection"
@@ -158,14 +242,10 @@ type StrategyGame() as this =
                     let item = basicEffect.Parameters.Item "Color"
                     item.SetValue(color.ToVector4())
 
+                SetBasicEffectColor Color.Black
+
 
                 let SetHexlayerEffectOffset = SetOffset hexlayerEffect
-
-                let SetMoveableColor (color: Color) =
-                    let item =
-                        hexlayerEffect.Parameters.Item "MoveableColor"
-
-                    item.SetValue(color.ToVector4())
 
                 let SetMoveableActive (active: bool) =
                     let item =
@@ -173,23 +253,11 @@ type StrategyGame() as this =
 
                     item.SetValue(active)
 
-                let SetAttackableColor (color: Color) =
-                    let item =
-                        hexlayerEffect.Parameters.Item "AttackableColor"
-
-                    item.SetValue(color.ToVector4())
-
                 let SetAttackableActive (active: bool) =
                     let item =
                         hexlayerEffect.Parameters.Item "AttackableActive"
 
                     item.SetValue(active)
-
-                let SetHighlightColor (color: Color) =
-                    let item =
-                        hexlayerEffect.Parameters.Item "HighlightColor"
-
-                    item.SetValue(color.ToVector4())
 
                 let SetHighlightActive (active: bool) =
                     let item =
@@ -198,23 +266,26 @@ type StrategyGame() as this =
                     item.SetValue(active)
 
                 //TODO: Use Index
-                for field in query do
-                    let white = Color.White
-                    let red = Color.Red
-                    let blue = Color.Blue
+                spriteBatch.Begin()
+                let query = world.Query<Field>()
 
+                for field in query do
                     let position =
                         Get2DPositionOfHexagon field.Value.Location hexfieldSize
-                        + centre
+                        + center
 
-                    if field.Value.Movable || field.Value.Attackable then
+                    let highlighted =
+                        match highlightedField with
+                        | Some highlightedField -> hexagonEquals field.Value.Location highlightedField.Location
+                        | None -> false
+
+                    if field.Value.Movable
+                       || field.Value.Attackable
+                       || highlighted then
                         SetHexlayerEffectOffset(Vector3(position, -0.1f))
-                        SetMoveableColor blue
                         SetMoveableActive field.Value.Movable
-                        SetAttackableColor red
                         SetAttackableActive field.Value.Attackable
-                        SetHighlightColor white
-                        SetHighlightActive false
+                        SetHighlightActive highlighted
 
                         hexlayerEffect
                             .CurrentTechnique
@@ -230,7 +301,6 @@ type StrategyGame() as this =
                         )
 
                     SetBasicEffectOffset(Vector3(position, 0.0f))
-                    SetBasicEffectColor Color.Black
 
                     basicEffect
                         .CurrentTechnique
@@ -245,6 +315,8 @@ type StrategyGame() as this =
                         polygonVertices.Length - 1
                     )
 
+                spriteBatch.End()
+
         base.Initialize() // Load content has been called after
 
         losPoint <-
@@ -253,7 +325,7 @@ type StrategyGame() as this =
 
     override this.LoadContent() =
         world.AddResource("FieldSize", 40f)
-        world.AddResource("Radius", 2)
+        world.AddResource("Radius", 3)
         world.AddResource("RecreateGrid", true)
         world.AddResource("SpriteBatch", new SpriteBatch(this.GraphicsDevice))
         world.AddResource("MousePos", Vector2.Zero)
@@ -261,11 +333,28 @@ type StrategyGame() as this =
         world.AddResource("MouseState", Mouse.GetState this.Window)
 
         world.AddResource(
-            "Centre",
+            "ScreenCenter",
             Vector2(float32 graphics.PreferredBackBufferWidth / 2f, float32 graphics.PreferredBackBufferHeight / 2f)
         )
 
-        world.AddResource("HexLayerEffect", this.Content.Load<Effect>("HexLayer"))
+        let hexlayerEffect = this.Content.Load<Effect>("HexLayer")
+
+        let item =
+            hexlayerEffect.Parameters.Item "MoveableColor"
+
+        item.SetValue(Color.Red.ToVector4())
+
+        let item =
+            hexlayerEffect.Parameters.Item "AttackableColor"
+
+        item.SetValue(Color.Blue.ToVector4())
+
+        let item =
+            hexlayerEffect.Parameters.Item "HighlightColor"
+
+        item.SetValue(Color.White.ToVector4())
+
+        world.AddResource("HexLayerEffect", hexlayerEffect)
         world.AddResource("BasicEffect", this.Content.Load<Effect>("Basic"))
 
         world.AddResource(
